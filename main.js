@@ -78,4 +78,4 @@ async function writeJsonFile(filePath, data) {
 //   });
 // }
 // REPLACE CATS FOR THE KEYWORD OF THE MEME U WANT TO SEARCH FOR
-startScrapper('let me do it for you')
+startScrapper('cats', 50)
