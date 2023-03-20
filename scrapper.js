@@ -17,10 +17,13 @@ const startScrapper = async (query, memesAmount = 1) => {
 
   for (let index = 0; memes.length < memesAmount; index++) {
     console.log(`Attempt page: ${index}`);
+
     if (index === 0)
       await page.goto(`https://search.cheezburger.com/#${query}/filter/image`);
     else await page.goto(`https://search.cheezburger.com/#${query}/page/${index + 1}/filter/image`);
+
     await new Promise(resolve => setTimeout(resolve, 1000))
+
     const newMemes = await page.evaluate(() => {
       const imageElements = document.querySelectorAll('img:not(.lazyload)');
       return Array.from(imageElements).map(img => img.src)
@@ -31,15 +34,36 @@ const startScrapper = async (query, memesAmount = 1) => {
     console.log(`Encontrados ${newMemes.length} memes en la página ${index + 1}.`)
     console.log(`Encontrados ${memes.length} de ${memesAmount}`)
 
-    await page.$eval('button[aria-label="Go to next page"]', button => button.click())
+    const nextPage = async () => {
+      try {
+        await page.waitForSelector('button[aria-label="Go to next page"]')
+        await page.$eval('button[aria-label="Go to next page"]', button => button.click())
+      } catch (err) {
+        return err
+      }
+    }
+
+    try {
+      nextPage()
+    } catch (err) {
+      console.log(err);
+      console.log(`Esperando...`);
+      page.waitForSelector('button[aria-label="Go to next page"]')
+      nextPage()
+    }
   };
+
   memes = memes.filter((image, index, array) => array.indexOf(image) === index)
 
   let currentDate = new Date()
   currentDate = currentDate.getTime()
+
   await writeJsonFile(`./memelog/${query}_${currentDate}.json`, memes)
   await console.log(`El resultado del scrapping ha sido de ${memes.length} resultados.`)
+
   await browser.close()
+  const jsonResult = await readJSONFile(`./memelog/${query}_${currentDate}.json`)
+  return jsonResult
 }
 
 async function writeJsonFile(filePath, data) {
@@ -58,6 +82,16 @@ async function writeJsonFile(filePath, data) {
 
   } catch (error) {
     console.error('Error writing JSON file:', error);
+  }
+
+  async function readJSONFile(file) {
+    try {
+      const data = await fs.promises.readFile(file, 'utf8');
+      const json = JSON.parse(data);
+      return json;
+    } catch (err) {
+      throw err;
+    }
   }
 }
 
@@ -82,4 +116,4 @@ async function writeJsonFile(filePath, data) {
 
 
 // TEMA Y NÚMERO DE MEMESÑ
-startScrapper('cats', 1000)
+// startScrapper('developer', 1000)
