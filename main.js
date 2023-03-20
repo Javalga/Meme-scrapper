@@ -1,52 +1,43 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs')
 
-const startScrapper = async (query) => {
-  try {
-    const browser = await puppeteer.launch({
-      headless: false,
-    });
-    const scrappingSitesURL = {
-      reddit: "https://www.reddit.com/r/memes/search/?q=",
-      ninegag: "https://9gag.com/search?query=",
-      memebase: "https://search.cheezburger.com/#"
-    }
-    const page = await browser.newPage();
-    const memes = {
-      reddit: [],
-      ninegag: [],
-      memebase: []
-    }
-    for (let key in scrappingSitesURL) {
-      console.log(key);
-      switch (key) {
-        case "reddit":
-          await page.goto(scrappingSitesURL[key] + query);
-          await page.waitForSelector('img');
-          memes[key].push(...new Set(await page.$$eval('img', img => img.map(img => img.src))));
-          break;
-        case "ninegag":
-          await page.goto(scrappingSitesURL[key] + query);
-          await page.waitForSelector('img');
-          memes[key].push(...new Set(await page.$$eval('img', img => img.map(img => img.src))));
-          break;
-        case "memebase":
-          await page.goto(scrappingSitesURL[key] + query);
-          await page.waitForSelector('.resp-media');
-          memes[key].push(...new Set(await page.$$eval('.resp-media', img => img.map(img => img.src))));
-          break;
-      }
-    }
-    // console.log(`Scrapping is done, number of memes collected is ${memes.reduce((acc, current) => { return acc + current.src.length })}`);
-    // const memesJson = await JSON.parse(memes)
-    let currentDate = new Date()
-    currentDate = currentDate.getTime()
-    writeJsonFile(`memes_${currentDate}.json`, memes)
+const startScrapper = async (query, pagesAmount) => {
+  const browser = await puppeteer.launch({
+    headless: false
+  });
 
-  } catch (err) {
-    console.log(err);
-  }
+  const page = await browser.newPage();
 
+  await page.setViewport({
+    width: 1200,
+    height: 800
+  })
+
+  let memes = []
+
+  for (let index = 0; index < pagesAmount; index++) {
+    console.log(`Attempt page: ${index}`);
+    if (index === 0)
+      await page.goto(`https://search.cheezburger.com/#${query}/filter/image`);
+    else await page.goto(`https://search.cheezburger.com/#${query}/page/${index + 1}/filter/image`);
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    const newMemes = await page.evaluate(() => {
+      const imageElements = document.querySelectorAll('img:not(.lazyload)');
+      return Array.from(imageElements).map(img => img.src)
+    })
+
+    memes.push(...newMemes)
+
+    console.log(`Encontradas ${newMemes.length} imágenes en la página ${index + 1}.`)
+    await page.$eval('button[aria-label="Go to next page"]', button => button.click())
+  };
+  memes = memes.filter((image, index, array) => array.indexOf(image) === index)
+
+  let currentDate = new Date()
+  currentDate = currentDate.getTime()
+  await writeJsonFile(`${query}_${currentDate}.json`, memes)
+  await console.log(`El resultado del scrapping ha sido de ${memes.length} resultados.`)
+  await browser.close()
 }
 
 async function writeJsonFile(filePath, data) {
@@ -60,7 +51,7 @@ async function writeJsonFile(filePath, data) {
     fs.readFile(filePath, (err, data) => {
       if (err) throw err
       const jsonData = JSON.parse(data)
-      console.table(jsonData);
+      console.log(jsonData);
     })
 
   } catch (error) {
@@ -68,4 +59,23 @@ async function writeJsonFile(filePath, data) {
   }
 }
 
-startScrapper('cats')
+// async function autoScroll(page) {
+//   await page.evaluate(async () => {
+//     await new Promise((resolve) => {
+//       let totalHeight = 0;
+//       let distance = 10000;
+//       let timer = setInterval(() => {
+//         let scrollHeight = document.body.scrollHeight;
+//         window.scrollBy(0, distance);
+//         totalHeight += distance;
+
+//         if (totalHeight >= scrollHeight - window.innerHeight) {
+//           clearInterval(timer);
+//           resolve();
+//         }
+//       }, 100);
+//     });
+//   });
+// }
+// REPLACE CATS FOR THE KEYWORD OF THE MEME U WANT TO SEARCH FOR
+startScrapper('let me do it for you')
